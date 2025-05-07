@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Band App - Checkpoint 5+ (Guitar Added)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      .status-indicator.connecting {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      /* --- Unchanged styles --- */
+      .room-code {
+        font-family: monospace;
+        background-color: #e2e8f0;
+        padding: 5px 10px;
+        border-radius: 4px;
+        display: inline-block;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        font-size: 1.1em;
+        letter-spacing: 2px;
+      }
+      .room-code:hover {
+        background-color: #cbd5e0;
+      }
+      #user-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 4px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      #user-list li:last-child {
+        border-bottom: none;
+      }
+      #user-list li .user-info {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      #user-list li .user-id {
+        font-size: 0.85em;
+        color: #4b5563;
+      }
+      #user-list li .user-instrument {
+        font-size: 0.95em;
+        color: #1f2937;
+        font-weight: 500;
+      }
+      #user-list li .you-indicator {
+        font-size: 0.8em;
+        font-style: italic;
+        color: #6b7280;
+        margin-left: 8px;
+      }
+      .instrument-btn {
+        padding: 8px 16px;
+        margin: 4px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background-color: white;
+        cursor: pointer;
+        transition: background-color 0.2s, color 0.2s;
+        font-weight: 500;
+      }
+      .instrument-btn:hover:not(:disabled) {
+        background-color: #f3f4f6;
+      }
+      .instrument-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background-color: #f9fafb;
+        color: #6b7280;
+      }
+      .instrument-btn.selected {
+        background-color: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+      }
+      .drum-pad {
+        width: 80px;
+        height: 80px;
+        background-color: #9ca3af;
+        border: 2px solid #4b5563;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        margin: 5px;
+        cursor: pointer;
+        user-select: none;
+        transition: background-color 0.1s, transform 0.1s;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .drum-pad:active,
+      .drum-pad.playing {
+        background-color: #6b7280;
+        transform: scale(0.95);
+      }
+      .drum-pad .key-hint {
+        font-size: 0.75em;
+        color: #f9fafb;
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 1px 4px;
+        border-radius: 3px;
+        position: absolute;
+        top: 5px;
+        left: 5px;
+      }
+      .drum-pad .pad-name {
+        font-size: 0.9em;
+        color: #f9fafb;
+        font-weight: 500;
+        margin-top: 5px;
+        text-align: center;
+      }
+      /* --- New styles for Guitar --- */
+      .guitar-chord-btn {
+        padding: 12px 20px;
+        font-size: 1rem;
+        font-weight: 500;
+        border: 1px solid #60a5fa; /* blue-400 */
+        color: #2563eb; /* blue-600 */
+        background-color: #eff6ff; /* blue-50 */
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        text-align: center;
+      }
+      .guitar-chord-btn:hover {
+        background-color: #dbeafe; /* blue-100 */
+        border-color: #3b82f6; /* blue-500 */
+      }
+      .guitar-chord-btn.playing {
+        /* Visual feedback */
+        background-color: #bfdbfe; /* blue-200 */
+        transform: scale(0.96);
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body
+    class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4"
+  >
+    <div
+      class="bg-white p-8 rounded-lg shadow-md w-full max-w-md text-center relative overflow-hidden min-h-[450px]"
+    >
+      <h1 class="text-2xl font-bold mb-4 text-gray-800">Band App</h1>
+
+      <div class="mb-6 border-b pb-4">
+        <span
+          id="status-indicator"
+          class="status-indicator connecting inline-block w-3 h-3 bg-yellow-500 rounded-full mr-2"
+        ></span>
+        <span id="status-text" class="text-gray-600 text-sm"
+          >Connecting...</span
+        >
+        <p id="client-id-display" class="text-xs text-gray-500 mt-1"></p>
+      </div>
+
+      <div
+        id="error-message"
+        class="text-red-600 text-sm mb-4 min-h-[20px]"
+      ></div>
+
+      <div id="views-container" class="invisible">
+        <div id="landing-view">
+          <h2 class="text-lg font-semibold mb-4 text-gray-700">
+            Join or Create a Room
+          </h2>
+          <button
+            id="create-room-btn"
+            class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg mb-4 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Create New Room
+          </button>
+          <div class="flex items-center gap-2">
+            <input
+              type="text"
+              id="room-code-input"
+              placeholder="Enter Room Code (e.g., ABCD)"
+              maxlength="4"
+              class="flex-grow p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase tracking-widest text-center"
+            />
+            <button
+              id="join-room-btn"
+              class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Join
+            </button>
+          </div>
+        </div>
+
+        <div id="waiting-room-view" class="hidden">
+          <h2 class="text-lg font-semibold mb-2 text-gray-700">Waiting Room</h2>
+          <div>
+            <span class="text-sm text-gray-600">Room Code:</span>
+            <div
+              id="room-code-display"
+              class="room-code"
+              title="Click to copy room code"
+            >
+              XXXX
+            </div>
+            <p class="text-xs text-gray-500 mb-4">
+              (Share this code with others)
+            </p>
+          </div>
+          <h3 class="text-md font-semibold mb-2 text-gray-600 text-left">
+            Members (<span id="user-count">1</span>/4):
+          </h3>
+          <ul
+            id="user-list"
+            class="list-none p-0 mb-4 h-32 overflow-y-auto border rounded-lg p-2 text-left"
+          ></ul>
+          <div id="instrument-selection" class="mt-4 pt-4 border-t">
+            <h3 class="text-md font-semibold mb-2 text-gray-600">
+              Choose Your Instrument:
+            </h3>
+            <div
+              id="instrument-buttons"
+              class="flex flex-wrap justify-center"
+            ></div>
+            <p id="instrument-status" class="text-sm text-gray-500 mt-2"></p>
+          </div>
+          <button
+            id="leave-room-btn"
+            class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg mt-6 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Leave Room
+          </button>
+        </div>
+
+        <div id="instrument-view" class="hidden">
+          <h2 class="text-lg font-semibold mb-4 text-gray-700">
+            Playing <span id="playing-instrument-name">[Instrument]</span>
+          </h2>
+          <div id="instrument-ui-area" class="mt-4">
+            <div
+              id="drum-kit"
+              class="hidden flex justify-center items-center flex-wrap p-4 border rounded-lg bg-gray-50"
+            >
+              <div class="drum-pad" data-sound="kick" data-key="a">
+                <span class="key-hint">A</span>
+                <span class="pad-name">Kick</span>
+              </div>
+              <div class="drum-pad" data-sound="snare" data-key="s">
+                <span class="key-hint">S</span>
+                <span class="pad-name">Snare</span>
+              </div>
+              <div class="drum-pad" data-sound="hat" data-key="d">
+                <span class="key-hint">D</span>
+                <span class="pad-name">Hi-Hat</span>
+              </div>
+            </div>
+            <div id="keyboard-instrument" class="hidden">
+              Keyboard UI goes here...
+            </div>
+            <div id="bass-instrument" class="hidden">Bass UI goes here...</div>
+            <div
+              id="guitar-instrument"
+              class="hidden flex flex-col items-center p-4 border rounded-lg bg-gray-50"
+            >
+              <p class="mb-4 text-gray-700 font-medium">
+                Click Chords to Play:
+              </p>
+              <div class="grid grid-cols-2 gap-4">
+                <button class="guitar-chord-btn" data-sound="g_chord">
+                  G Chord
+                </button>
+                <button class="guitar-chord-btn" data-sound="c_chord">
+                  C Chord
+                </button>
+                <button class="guitar-chord-btn" data-sound="d_chord">
+                  D Chord
+                </button>
+                <!-- <button class="guitar-chord-btn" data-sound="em_chord">
+                  Em Chord
+                </button> -->
+              </div>
+            </div>
+          </div>
+          <button
+            id="leave-room-btn-playing"
+            class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg mt-6 transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Leave Room
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      console.log("Script block started parsing..."); // Log script start
+
+      // --- Constants ---
+      const AVAILABLE_INSTRUMENTS = ["Drums", "Keyboard", "Bass", "Guitar"];
+      const DRUM_SOUNDS = {
+        kick: { file: "sounds/kick.wav", key: "a", padElement: null },
+        snare: { file: "sounds/snare.wav", key: "s", padElement: null },
+        hat: { file: "sounds/hat.wav", key: "d", padElement: null },
+      };
+      // --- NEW: Define Guitar Sounds ---
+      const GUITAR_SOUNDS = {
+        g_chord: { file: "sounds/guitar_g.wav", buttonElement: null },
+        c_chord: { file: "sounds/guitar_c.wav", buttonElement: null },
+        d_chord: { file: "sounds/guitar_d.wav", buttonElement: null },
+        // em_chord: { file: "sounds/guitar_em.wav", buttonElement: null },
+      };
+      // Combine all sounds for easier loading
+      const ALL_SOUND_DEFINITIONS = {
+        drums: DRUM_SOUNDS,
+        guitar: GUITAR_SOUNDS,
+        // Add keyboard, bass definitions here when implemented
+      };
+
+      // --- State Variables ---
+      let ws = null;
+      let clientId = null;
+      let currentRoomId = null;
+      let currentView = null;
+      let roomOccupants = new Map();
+      let selectedInstrument = null;
+      let audioContext = null;
+      let soundBuffers = {}; // Combined buffer cache (e.g., 'kick', 'g_chord')
+      let soundsLoaded = false;
+      let isLoadingSounds = false;
+
+      // --- UI Elements ---
+      let statusIndicator,
+        statusText,
+        clientIdDisplay,
+        errorMessageDiv,
+        viewsContainer,
+        landingView,
+        waitingRoomView,
+        instrumentView,
+        createRoomBtn,
+        joinRoomBtn,
+        roomCodeInput,
+        roomCodeDisplay,
+        userList,
+        userCount,
+        leaveRoomBtn,
+        leaveRoomBtnPlaying,
+        instrumentSelectionDiv,
+        instrumentButtonsDiv,
+        instrumentStatus,
+        playingInstrumentName,
+        instrumentUiArea,
+        drumKitDiv,
+        guitarInstrumentDiv; // <-- Added Guitar Div
+
+      // --- Function Definitions ---
+
+      function clearError() {
+        if (errorMessageDiv) errorMessageDiv.textContent = "";
+      }
+      function showError(message) {
+        if (errorMessageDiv) errorMessageDiv.textContent = message;
+        console.error("Error:", message);
+      }
+      function sendWsMessage(message) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+          console.log("Sent:", message);
+        } else {
+          showError("Not connected to server.");
+          console.warn("WebSocket is not connected.");
+        }
+      }
+
+      function showView(viewId) {
+        // ... (This function remains largely unchanged, ensure instrument-view logic is correct) ...
+        if (!viewId && clientId) {
+          viewId = "landing-view";
+          console.log("[showView] Defaulting to landing-view");
+        } else if (!viewId) {
+          console.warn("[showView] Called with null/undefined viewId.");
+          return;
+        }
+        console.log(`[showView] Attempting to switch view to: ${viewId}`);
+        currentView = viewId.replace("-view", "");
+        if (viewsContainer) {
+          viewsContainer.classList.remove("invisible");
+        } else {
+          console.error("[showView] viewsContainer not found!");
+          return;
+        }
+
+        [landingView, waitingRoomView, instrumentView].forEach((view) => {
+          if (view) {
+            view.classList.add("hidden");
+            if (view.id === viewId) {
+              view.classList.remove("hidden");
+            }
+          } else {
+            console.warn(
+              `[showView] View element variable is null during iteration.`
+            );
+          }
+        });
+
+        if (instrumentSelectionDiv) {
+          instrumentSelectionDiv.classList.toggle(
+            "hidden",
+            currentView !== "waiting-room"
+          );
+        }
+
+        if (currentView === "instrument") {
+          showSpecificInstrumentUI(selectedInstrument);
+          if (playingInstrumentName)
+            playingInstrumentName.textContent =
+              selectedInstrument || "[Unknown]";
+        } else {
+          hideAllInstrumentUIs();
+        }
+        console.log(`[showView] currentView is now: ${currentView}`);
+        updateButtonStates();
+      }
+
+      function hideAllInstrumentUIs() {
+        const divs = instrumentUiArea?.querySelectorAll(":scope > div");
+        divs?.forEach((div) => div.classList.add("hidden"));
+      }
+      function showSpecificInstrumentUI(instrumentName) {
+        hideAllInstrumentUIs();
+        if (!instrumentName) return;
+        let targetDivId = null;
+        // Use lowercase for comparison
+        switch (instrumentName.toLowerCase()) {
+          case "drums":
+            targetDivId = "drum-kit";
+            break;
+          case "keyboard":
+            targetDivId = "keyboard-instrument";
+            break; // Placeholder
+          case "bass":
+            targetDivId = "bass-instrument";
+            break; // Placeholder
+          case "guitar":
+            targetDivId = "guitar-instrument";
+            break; // <-- Handle Guitar
+          default:
+            console.warn(
+              `No specific UI defined for instrument: ${instrumentName}`
+            );
+            return;
+        }
+        const targetDiv = document.getElementById(targetDivId);
+        if (targetDiv) {
+          targetDiv.classList.remove("hidden");
+          console.log(`Showing UI for ${instrumentName}`);
+        } else {
+          console.warn(`UI div not found: #${targetDivId}`);
+        }
+      }
+
+      function updateRoomUI() {
+        // ... (Unchanged) ...
+        console.log(
+          `[updateRoomUI] Called. Current occupants map:`,
+          roomOccupants
+        );
+        if (!currentRoomId || !userList) {
+          console.warn(
+            "[updateRoomUI] Aborted: No currentRoomId or userList element."
+          );
+          return;
+        }
+        if (roomCodeDisplay) roomCodeDisplay.textContent = currentRoomId;
+        if (userCount) userCount.textContent = roomOccupants.size;
+        userList.innerHTML = "";
+        roomOccupants.forEach((occupantData, id) => {
+          const li = document.createElement("li");
+          const userInfoDiv = document.createElement("div");
+          userInfoDiv.className = "user-info";
+          const nameSpan = document.createElement("span");
+          nameSpan.className = "user-id";
+          nameSpan.textContent = `Client ${id.substring(0, 8)}...`;
+          userInfoDiv.appendChild(nameSpan);
+          const instrumentSpan = document.createElement("span");
+          instrumentSpan.className = "user-instrument";
+          instrumentSpan.textContent = occupantData.instrument
+            ? `Playing: ${occupantData.instrument}`
+            : "Selecting instrument...";
+          userInfoDiv.appendChild(instrumentSpan);
+          li.appendChild(userInfoDiv);
+          if (id === clientId) {
+            const youSpan = document.createElement("span");
+            youSpan.textContent = "(You)";
+            youSpan.className = "you-indicator";
+            li.appendChild(youSpan);
+          }
+          userList.appendChild(li);
+        });
+        updateInstrumentButtons();
+        console.log(`[updateRoomUI] Finished updating list in DOM.`);
+      }
+
+      function updateInstrumentButtons() {
+        // ... (Unchanged) ...
+        if (!instrumentButtonsDiv) return;
+        instrumentButtonsDiv.innerHTML = "";
+        const myData = roomOccupants.get(clientId);
+        selectedInstrument = myData ? myData.instrument : null;
+        AVAILABLE_INSTRUMENTS.forEach((instrument) => {
+          const button = document.createElement("button");
+          button.textContent = instrument;
+          button.className = "instrument-btn";
+          button.dataset.instrument = instrument;
+          button.disabled = !!selectedInstrument;
+          if (instrument === selectedInstrument)
+            button.classList.add("selected");
+          button.addEventListener("click", handleInstrumentSelection);
+          instrumentButtonsDiv.appendChild(button);
+        });
+        if (instrumentStatus)
+          instrumentStatus.textContent = selectedInstrument
+            ? `You selected: ${selectedInstrument}`
+            : "";
+      }
+
+      function handleInstrumentSelection(event) {
+        // ... (Unchanged) ...
+        const button = event.target;
+        const instrument = button.dataset.instrument;
+        if (!instrument || button.disabled || selectedInstrument) {
+          console.log("Instrument selection ignored.");
+          return;
+        }
+        console.log(`Selected instrument: ${instrument}`);
+        selectedInstrument = instrument;
+        sendWsMessage({
+          type: "select_instrument",
+          payload: { instrument: instrument },
+        });
+        updateInstrumentButtons();
+      }
+
+      async function copyRoomCode() {
+        /* ... (Unchanged) ... */ if (!currentRoomId) return;
+        try {
+          await navigator.clipboard.writeText(currentRoomId);
+          const o = roomCodeDisplay.textContent;
+          roomCodeDisplay.textContent = "Copied!";
+          setTimeout(() => {
+            if (roomCodeDisplay.textContent === "Copied!")
+              roomCodeDisplay.textContent = o;
+          }, 1500);
+        } catch (err) {
+          console.error("Failed to copy code: ", err);
+          showError("Could not copy code.");
+        }
+      }
+      function resetRoomState() {
+        /* ... (Unchanged) ... */ console.log(
+          "[resetRoomState] Resetting room state and returning to landing page."
+        );
+        currentRoomId = null;
+        roomOccupants.clear();
+        selectedInstrument = null;
+        if (roomCodeInput) roomCodeInput.value = "";
+        hideAllInstrumentUIs();
+        showView("landing-view");
+      }
+      function disconnectAndReset() {
+        /* ... (Unchanged) ... */ console.log(
+          "[disconnectAndReset] Fully disconnecting and resetting."
+        );
+        const wasConnected = ws && ws.readyState === WebSocket.OPEN;
+        if (ws) {
+          ws.onclose = null;
+          ws.close(1000, "Client disconnected");
+          ws = null;
+        }
+        clientId = null;
+        if (clientIdDisplay) clientIdDisplay.textContent = "";
+        resetRoomState();
+        if (wasConnected) {
+          if (statusText) statusText.textContent = "Disconnected";
+          if (statusIndicator)
+            statusIndicator.className =
+              "status-indicator inline-block w-3 h-3 bg-red-500 rounded-full mr-2";
+        } else {
+          if (statusText) statusText.textContent = "Disconnected";
+          if (statusIndicator)
+            statusIndicator.className =
+              "status-indicator inline-block w-3 h-3 bg-red-500 rounded-full mr-2";
+        }
+        updateButtonStates();
+      }
+      function requestLeaveRoom() {
+        /* ... (Unchanged) ... */ console.log("Requesting to leave room...");
+        if (!currentRoomId) {
+          console.warn("Tried to leave room, but no currentRoomId set.");
+          resetRoomState();
+          return;
+        }
+        sendWsMessage({ type: "leave_room" });
+      }
+      function updateButtonStates() {
+        /* ... (Unchanged) ... */ const i =
+          ws && ws.readyState === WebSocket.OPEN;
+        if (createRoomBtn) createRoomBtn.disabled = !i;
+        if (joinRoomBtn)
+          joinRoomBtn.disabled =
+            !i || !roomCodeInput || roomCodeInput.value.trim().length !== 4;
+        if (leaveRoomBtn)
+          leaveRoomBtn.disabled = !i || currentView !== "waiting-room";
+        if (leaveRoomBtnPlaying)
+          leaveRoomBtnPlaying.disabled = !i || currentView !== "instrument";
+      }
+      function ensureAudioContext() {
+        /* ... (Unchanged) ... */ if (audioContext) {
+          if (audioContext.state === "suspended")
+            audioContext
+              .resume()
+              .then(() => console.log("AudioContext resumed."));
+          return true;
+        }
+        try {
+          console.log("Attempting to initialize AudioContext...");
+          audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          console.log(`AudioContext initialized. State: ${audioContext.state}`);
+          if (audioContext.state === "suspended")
+            audioContext
+              .resume()
+              .then(() =>
+                console.log("AudioContext resumed immediately after creation.")
+              );
+          return true;
+        } catch (e) {
+          console.error(
+            "Web Audio API is not supported or failed to initialize",
+            e
+          );
+          showError("Audio playback not supported or blocked by browser.");
+          audioContext = null;
+          return false;
+        }
+      }
+
+      async function loadSounds() {
+        // --- MODIFIED to load all instruments ---
+        if (soundsLoaded || isLoadingSounds || !audioContext) {
+          if (isLoadingSounds)
+            console.log("Sound loading already in progress.");
+          if (soundsLoaded) console.log("Sounds already loaded.");
+          if (!audioContext)
+            console.warn("Cannot load sounds, AudioContext not available.");
+          return;
+        }
+        console.log("Loading sounds...");
+        isLoadingSounds = true;
+        const soundPromises = [];
+        const baseUrl = window.location.origin;
+
+        // Iterate through all defined instrument sound groups
+        for (const instrumentType in ALL_SOUND_DEFINITIONS) {
+          const soundGroup = ALL_SOUND_DEFINITIONS[instrumentType];
+          for (const soundName in soundGroup) {
+            const soundInfo = soundGroup[soundName];
+            // Use soundName directly as the key in soundBuffers (e.g., 'kick', 'g_chord')
+            if (soundBuffers[soundName]) continue; // Skip if already loaded/loading
+
+            const soundUrl = `${baseUrl}/${soundInfo.file}`;
+            console.log(
+              `Attempting to load sound: ${soundName} from: ${soundUrl}`
+            );
+            soundPromises.push(
+              fetch(soundUrl)
+                .then((r) => {
+                  if (!r.ok)
+                    throw new Error(`HTTP ${r.status} for ${soundUrl}`);
+                  return r.arrayBuffer();
+                })
+                .then((ab) => audioContext.decodeAudioData(ab))
+                .then((buf) => {
+                  soundBuffers[soundName] = buf; // Store buffer directly by soundName
+                  console.log(`Loaded: ${soundName}`);
+                })
+                .catch((e) => {
+                  console.error(
+                    `Error loading ${soundName} (${soundInfo.file}):`,
+                    e
+                  );
+                  showError(`Failed to load ${soundInfo.file}`);
+                })
+            );
+          }
+        }
+
+        try {
+          await Promise.all(soundPromises);
+          console.log("Sound loading process finished.");
+          soundsLoaded = true;
+        } catch (error) {
+          console.error("Error during Promise.all for sound loading:", error);
+        } finally {
+          isLoadingSounds = false;
+        }
+      }
+
+      async function playSound(soundName, isRemote = false) {
+        // --- MODIFIED to handle different sound names ---
+        if (!ensureAudioContext()) {
+          console.warn(`Cannot play sound: ${soundName}. AudioContext failed.`);
+          return;
+        }
+        if (!soundsLoaded) {
+          console.log(
+            `Sounds not loaded for playing ${soundName}. Triggering load...`
+          );
+          await loadSounds();
+          if (!soundBuffers[soundName]) {
+            console.warn(
+              `Cannot play sound: ${soundName}. Buffer still missing after load attempt.`
+            );
+            return;
+          }
+          console.log(`Sounds loaded. Proceeding to play ${soundName}.`);
+        }
+        if (!soundBuffers[soundName]) {
+          console.warn(`Cannot play sound: ${soundName}. Buffer missing.`);
+          return;
+        }
+        if (audioContext.state === "suspended") await audioContext.resume();
+        try {
+          const source = audioContext.createBufferSource();
+          source.buffer = soundBuffers[soundName];
+          source.connect(audioContext.destination);
+          source.start(0);
+          console.log(
+            `Playing sound: ${soundName} (${isRemote ? "Remote" : "Local"})`
+          );
+          if (!isRemote) triggerVisualFeedback(soundName);
+        } catch (error) {
+          console.error(`Error playing sound ${soundName}:`, error);
+        }
+      }
+
+      function triggerVisualFeedback(soundName) {
+        // --- MODIFIED to handle guitar ---
+        // Drum feedback
+        const drumInfo = DRUM_SOUNDS[soundName];
+        if (drumInfo && drumInfo.padElement) {
+          drumInfo.padElement.classList.add("playing");
+          setTimeout(() => {
+            drumInfo.padElement.classList.remove("playing");
+          }, 100);
+          return; // Handled drum
+        }
+        // Guitar feedback
+        const guitarInfo = GUITAR_SOUNDS[soundName];
+        if (guitarInfo && guitarInfo.buttonElement) {
+          guitarInfo.buttonElement.classList.add("playing");
+          setTimeout(() => {
+            guitarInfo.buttonElement.classList.remove("playing");
+          }, 150); // Slightly longer feedback
+          return; // Handled guitar
+        }
+        // Add feedback for other instruments here...
+      }
+
+      function handleKeyDown(event) {
+        // --- Only handle drums for now ---
+        if (
+          event.target.tagName === "INPUT" ||
+          event.target.tagName === "TEXTAREA" ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.altKey ||
+          currentView !== "instrument"
+        )
+          return;
+        if (!audioContext || !soundsLoaded) {
+          console.log("First key press requiring audio detected.");
+          if (ensureAudioContext() && !soundsLoaded) loadSounds();
+        }
+        const key = event.key.toLowerCase();
+
+        // Only Drums have keybindings currently
+        if (selectedInstrument === "Drums") {
+          let soundToPlay = null;
+          for (const name in DRUM_SOUNDS)
+            if (DRUM_SOUNDS[name].key === key) {
+              soundToPlay = name;
+              break;
+            }
+          if (soundToPlay) {
+            event.preventDefault();
+            playSound(soundToPlay); // Play locally
+            // Send message with generic sound name (e.g., 'kick')
+            sendWsMessage({
+              type: "play_sound",
+              payload: { instrument: "Drums", sound: soundToPlay },
+            });
+          }
+        }
+        // Add key bindings for other instruments here if needed
+      }
+
+      function connectWebSocket() {
+        /* ... (Unchanged, but check ws.onmessage) ... */
+        console.log("[connectWebSocket] Function entered.");
+        const PORT = 8080;
+        const wsProtocol =
+          window.location.protocol === "https:" ? "wss:" : "ws:";
+        const serverHost = window.location.hostname;
+        const dynamicServerAddress = `${wsProtocol}//${serverHost}:${PORT}`;
+        console.log(
+          `[connectWebSocket] Attempting to connect to ${dynamicServerAddress}...`
+        );
+        if (statusText) statusText.textContent = "Connecting...";
+        if (statusIndicator)
+          statusIndicator.className =
+            "status-indicator connecting inline-block w-3 h-3 bg-yellow-500 rounded-full mr-2";
+        clearError();
+        if (viewsContainer) viewsContainer.classList.add("invisible");
+        try {
+          console.log("[connectWebSocket] Creating WebSocket object...");
+          ws = new WebSocket(dynamicServerAddress);
+          console.log("[connectWebSocket] WebSocket object created.");
+        } catch (error) {
+          console.error("[connectWebSocket] Error creating WebSocket:", error);
+          showError("Failed to create WebSocket.");
+          if (statusText) statusText.textContent = "Connection Failed";
+          if (statusIndicator)
+            statusIndicator.className =
+              "status-indicator inline-block w-3 h-3 bg-red-500 rounded-full mr-2";
+          updateButtonStates();
+          return;
+        }
+
+        console.log("[connectWebSocket] Setting up event handlers...");
+        ws.onopen = () => {
+          console.log("[onopen] WebSocket connection established");
+          if (statusText) statusText.textContent = "Connected";
+          if (statusIndicator)
+            statusIndicator.className =
+              "status-indicator inline-block w-3 h-3 bg-green-500 rounded-full mr-2";
+          console.log(
+            `[onopen] Connection open. currentRoomId: ${currentRoomId}. Checking view...`
+          );
+          if (!currentRoomId) {
+            console.log(
+              "[onopen] No room ID, calling showView('landing-view')"
+            );
+            showView("landing-view");
+          } else {
+            console.log(
+              `[onopen] Have room ID (${currentRoomId}), calling showView('waiting-room-view')`
+            );
+            showView("waiting-room-view");
+            updateRoomUI();
+          }
+        };
+        ws.onmessage = async (event) => {
+          // --- MODIFIED: sound_played case ---
+          try {
+            const message = JSON.parse(event.data);
+            console.log(`Received:`, message);
+            clearError();
+            switch (message.type) {
+              case "connection_ack":
+                clientId = message.payload.clientId;
+                if (clientIdDisplay)
+                  clientIdDisplay.textContent = `My ID: ${clientId.substring(
+                    0,
+                    8
+                  )}...`;
+                // Trigger sound loading on successful connection? Maybe wait until needed.
+                // ensureAudioContext(); // User interaction might be needed first
+                // loadSounds();
+                break;
+              case "room_state_update":
+                const prevRoomId = currentRoomId;
+                currentRoomId = message.payload.roomId;
+                const newOccupants = new Map();
+                message.payload.occupants.forEach((o) => {
+                  newOccupants.set(o.clientId, { instrument: o.instrument });
+                });
+                roomOccupants = newOccupants;
+                const myData = roomOccupants.get(clientId);
+                selectedInstrument = myData ? myData.instrument : null;
+
+                if (myData) {
+                  // Still in the room
+                  if (selectedInstrument && currentView !== "instrument") {
+                    console.log(
+                      "Instrument selected, switching to instrument view."
+                    );
+                    if (playingInstrumentName)
+                      playingInstrumentName.textContent = selectedInstrument;
+                    ensureAudioContext(); // Ensure context is ready before showing instrument
+                    loadSounds(); // Load sounds when entering instrument view
+                    showView("instrument-view");
+                  } else if (
+                    !selectedInstrument &&
+                    currentView !== "waiting-room"
+                  ) {
+                    console.log(
+                      "In room, no instrument selected, ensuring waiting-room view."
+                    );
+                    showView("waiting-room-view");
+                  }
+                  updateRoomUI(); // Update list/buttons regardless
+                } else if (prevRoomId) {
+                  // No longer in the room (or state update missed previous state)
+                  console.log(
+                    "Client ID not found in received room state (likely left/kicked). Resetting."
+                  );
+                  resetRoomState();
+                } else {
+                  console.log(
+                    "Received room state update but client ID not found, and wasn't previously in a room. Ignoring."
+                  );
+                }
+                break;
+              case "sound_played": // <<<--- Modified section
+                console.log(
+                  "[sound_played] Message received:",
+                  message.payload
+                );
+                const { senderId, instrument, sound } = message.payload;
+                if (ensureAudioContext() && !soundsLoaded) {
+                  console.log(
+                    "[sound_played] Triggering sound load because context ready but sounds not loaded..."
+                  );
+                  await loadSounds(); // Wait for loading if needed
+                }
+                // Check if buffer exists for the sound identifier (e.g., 'kick', 'g_chord')
+                if (soundBuffers[sound]) {
+                  console.log(
+                    `[sound_played] Calling playSound for remote: ${instrument} - ${sound}`
+                  );
+                  playSound(sound, true); // Play sound using the generic identifier
+                } else {
+                  console.warn(
+                    `[sound_played] Received sound event for unknown/unloaded sound: ${instrument} - ${sound}`
+                  );
+                }
+                break; // <<<--- End of modified section
+              case "error":
+                showError(message.payload.message);
+                if (
+                  message.payload.message.includes("full") ||
+                  message.payload.message.includes("not found")
+                ) {
+                  if (roomCodeInput) roomCodeInput.focus();
+                }
+                if (
+                  message.payload.message.includes("Invalid instrument") ||
+                  message.payload.message.includes("already taken")
+                ) {
+                  selectedInstrument = null;
+                  updateInstrumentButtons();
+                }
+                break;
+              case "server_shutdown":
+                showError("Server is shutting down. Disconnected.");
+                ws = null;
+                disconnectAndReset();
+                break;
+              default:
+                console.log("Unknown message type received:", message.type);
+            }
+          } catch (error) {
+            console.error(
+              "Failed to parse message or handle data:",
+              event.data,
+              error
+            );
+            showError("Received invalid data from server.");
+          }
+          updateButtonStates();
+        };
+        ws.onclose = (event) => {
+          console.log("WebSocket connection closed:", event.code, event.reason);
+          if (ws !== null) {
+            if (statusText) statusText.textContent = "Disconnected";
+            if (statusIndicator)
+              statusIndicator.className =
+                "status-indicator inline-block w-3 h-3 bg-red-500 rounded-full mr-2";
+            showError(`Disconnected: ${event.reason || "Connection closed"}`);
+            disconnectAndReset();
+          } else {
+            console.log("Manual disconnect or server shutdown detected.");
+          }
+          updateButtonStates();
+        };
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          if (statusText) statusText.textContent = "Connection Error";
+          if (statusIndicator)
+            statusIndicator.className =
+              "status-indicator inline-block w-3 h-3 bg-red-500 rounded-full mr-2";
+          showError("Connection error. Is the server running? Check firewall.");
+          disconnectAndReset();
+        };
+        console.log("[connectWebSocket] Event handlers set up.");
+      }
+
+      function setupEventListeners() {
+        // --- MODIFIED to include Guitar ---
+        console.log("[setupEventListeners] Function entered.");
+        try {
+          // Existing listeners...
+          if (createRoomBtn)
+            createRoomBtn.addEventListener("click", () => {
+              clearError();
+              sendWsMessage({ type: "create_room" });
+            });
+          else console.warn("createRoomBtn not found");
+          if (joinRoomBtn)
+            joinRoomBtn.addEventListener("click", () => {
+              console.log("Join button clicked!");
+              clearError();
+              const rc = roomCodeInput
+                ? roomCodeInput.value.trim().toUpperCase()
+                : "";
+              if (rc.length === 4 && /^[A-Z]+$/.test(rc)) {
+                console.log(`Attempting to join room: ${rc}`);
+                sendWsMessage({ type: "join_room", payload: { roomCode: rc } });
+              } else {
+                showError("Invalid room code format.");
+                console.log(`Join validation failed: "${rc}"`);
+                if (roomCodeInput) roomCodeInput.focus();
+              }
+            });
+          else console.warn("joinRoomBtn not found");
+          if (roomCodeInput) {
+            roomCodeInput.addEventListener("keypress", (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                joinRoomBtn.click();
+              }
+            });
+            roomCodeInput.addEventListener("input", updateButtonStates);
+          } else console.warn("roomCodeInput not found");
+          if (roomCodeDisplay)
+            roomCodeDisplay.addEventListener("click", copyRoomCode);
+          else console.warn("roomCodeDisplay not found");
+          if (leaveRoomBtn)
+            leaveRoomBtn.addEventListener("click", requestLeaveRoom);
+          else console.warn("leaveRoomBtn not found");
+          if (leaveRoomBtnPlaying)
+            leaveRoomBtnPlaying.addEventListener("click", requestLeaveRoom);
+          else console.warn("leaveRoomBtnPlaying not found");
+
+          // Global keydown (currently only for drums)
+          window.addEventListener("keydown", handleKeyDown);
+          console.log("[setupEventListeners] Global keydown listener set.");
+
+          // Drum Pad Listeners
+          const pads = document.querySelectorAll("#drum-kit .drum-pad");
+          console.log(`[setupEventListeners] Found ${pads.length} drum pads.`);
+          pads.forEach((pad) => {
+            const soundName = pad.dataset.sound;
+            if (DRUM_SOUNDS[soundName]) {
+              DRUM_SOUNDS[soundName].padElement = pad; // Store element reference
+            } else {
+              console.warn(
+                `Sound info not found for pad data-sound="${soundName}"`
+              );
+            }
+            pad.addEventListener("click", () => {
+              const sn = pad.dataset.sound;
+              const k = DRUM_SOUNDS[sn]?.key; // Use the key from definition for consistency
+              // Trigger via simulated keydown handler
+              if (
+                sn &&
+                k &&
+                selectedInstrument === "Drums" &&
+                currentView === "instrument"
+              ) {
+                if (!audioContext || !soundsLoaded) {
+                  console.log("First pad click requiring audio detected.");
+                  if (ensureAudioContext() && !soundsLoaded) loadSounds();
+                }
+                handleKeyDown({
+                  key: k,
+                  preventDefault: () => {},
+                  target: document.body,
+                });
+              }
+            });
+          });
+          console.log("[setupEventListeners] Drum pad listeners set up.");
+
+          // --- NEW: Guitar Chord Button Listeners ---
+          const chordBtns = document.querySelectorAll(
+            "#guitar-instrument .guitar-chord-btn"
+          );
+          console.log(
+            `[setupEventListeners] Found ${chordBtns.length} guitar chord buttons.`
+          );
+          chordBtns.forEach((btn) => {
+            const soundName = btn.dataset.sound; // e.g., 'g_chord'
+            if (GUITAR_SOUNDS[soundName]) {
+              GUITAR_SOUNDS[soundName].buttonElement = btn; // Store element reference
+            } else {
+              console.warn(
+                `Sound info not found for guitar button data-sound="${soundName}"`
+              );
+            }
+            btn.addEventListener("click", () => {
+              if (
+                soundName &&
+                selectedInstrument === "Guitar" &&
+                currentView === "instrument"
+              ) {
+                if (!audioContext || !soundsLoaded) {
+                  console.log("First guitar click requiring audio detected.");
+                  if (ensureAudioContext() && !soundsLoaded) loadSounds();
+                }
+                playSound(soundName); // Play locally
+                // Send message with generic sound name (e.g., 'g_chord')
+                sendWsMessage({
+                  type: "play_sound",
+                  payload: { instrument: "Guitar", sound: soundName },
+                });
+              }
+            });
+          });
+          console.log(
+            "[setupEventListeners] Guitar chord button listeners set up."
+          );
+        } catch (error) {
+          console.error(
+            "[setupEventListeners] Error during listener setup:",
+            error
+          );
+          showError("Failed to set up event listeners.");
+        }
+        console.log("[setupEventListeners] Function finished.");
+      }
+
+      // --- Initialisation ---
+      window.addEventListener("load", () => {
+        console.log("Window loaded. Assigning UI elements...");
+        // Assign elements (Add guitarInstrumentDiv)
+        statusIndicator = document.getElementById("status-indicator");
+        statusText = document.getElementById("status-text");
+        clientIdDisplay = document.getElementById("client-id-display");
+        errorMessageDiv = document.getElementById("error-message");
+        viewsContainer = document.getElementById("views-container");
+        landingView = document.getElementById("landing-view");
+        waitingRoomView = document.getElementById("waiting-room-view");
+        instrumentView = document.getElementById("instrument-view");
+        createRoomBtn = document.getElementById("create-room-btn");
+        joinRoomBtn = document.getElementById("join-room-btn");
+        roomCodeInput = document.getElementById("room-code-input");
+        roomCodeDisplay = document.getElementById("room-code-display");
+        userList = document.getElementById("user-list");
+        userCount = document.getElementById("user-count");
+        leaveRoomBtn = document.getElementById("leave-room-btn");
+        leaveRoomBtnPlaying = document.getElementById("leave-room-btn-playing");
+        instrumentSelectionDiv = document.getElementById(
+          "instrument-selection"
+        );
+        instrumentButtonsDiv = document.getElementById("instrument-buttons");
+        instrumentStatus = document.getElementById("instrument-status");
+        playingInstrumentName = document.getElementById(
+          "playing-instrument-name"
+        );
+        instrumentUiArea = document.getElementById("instrument-ui-area");
+        drumKitDiv = document.getElementById("drum-kit");
+        guitarInstrumentDiv = document.getElementById("guitar-instrument"); // <-- Assign Guitar Div
+
+        // Robust check (Add guitarInstrumentDiv)
+        const elementMap = {
+          "status-indicator": statusIndicator,
+          /* ... other elements ... */ "drum-kit": drumKitDiv,
+          "guitar-instrument": guitarInstrumentDiv,
+        };
+        let allElementsFound = true;
+        for (const id in elementMap)
+          if (!elementMap[id]) {
+            console.error(`Init failed: Missing element '#${id}'`);
+            showError(`Init failed: Missing element '#${id}'`);
+            allElementsFound = false;
+            break;
+          }
+
+        if (allElementsFound) {
+          console.log(
+            "All essential UI elements found. Initializing application..."
+          );
+          try {
+            console.log("Attempting to call connectWebSocket...");
+            connectWebSocket();
+            console.log(
+              "connectWebSocket call finished (connection happens async)."
+            );
+            console.log("Calling setupEventListeners...");
+            setupEventListeners();
+            console.log("setupEventListeners finished.");
+          } catch (initError) {
+            console.error("Error during initialization calls:", initError);
+            showError("Initialization failed unexpectedly.");
+          }
+        } else {
+          console.error(
+            "Application initialization halted due to missing UI elements."
+          );
+        }
+      });
+    </script>
+  </body>
+</html>
